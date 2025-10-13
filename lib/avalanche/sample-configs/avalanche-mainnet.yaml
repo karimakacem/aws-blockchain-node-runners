@@ -1,0 +1,19 @@
+# Avalanche Mainnet Configuration
+avalanche:
+  instanceType: c6i.2xlarge
+  instanceCpuType: x86_64
+  avalancheNetwork: mainnet
+  nodeType: full
+  dataVolumeSize: 1000
+  dataVolumeType: gp3
+  dataVolumeIops: 3000
+  httpPort: 9650
+  stakingPort: 9651
+  avalanchegoVersion: v1.10.17
+  enableStaking: false
+  enableCloudWatchLogs: true
+  enableSsh: false
+
+aws:
+  region: us-east-1
+  availabilityZone: us-east-1a
