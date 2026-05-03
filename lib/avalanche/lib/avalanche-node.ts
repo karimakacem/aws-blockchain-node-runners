@@ -271,6 +271,7 @@ ExecStart=/opt/avalanche/current/avalanchego \\
   --http-port=${config.httpPort} \\
   --staking-port=${config.stakingPort} \\
   --public-ip-resolution-service=opendns \\
+  --state-sync-enabled=true \\
   --log-level=info \\
   ${networkFlag}
 Restart=always
