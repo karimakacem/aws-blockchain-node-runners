@@ -129,12 +129,11 @@ export class RobinhoodSingleNodeStack extends cdk.Stack {
         // User data for Robinhood Chain setup
         node.instance.addUserData(
             '#!/bin/bash',
-            'set -e',
             'exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1',
             'echo "Starting Robinhood Chain node setup..."',
             '',
             '# Install required packages',
-            'yum install -y docker wget jq amazon-cloudwatch-agent',
+            'dnf install -y docker wget jq amazon-cloudwatch-agent aws-cfn-bootstrap unzip',
             'systemctl enable docker',
             'systemctl start docker',
             '',
@@ -201,10 +200,10 @@ export class RobinhoodSingleNodeStack extends cdk.Stack {
             '',
             '# Signal CloudFormation',
             'if systemctl is-active --quiet nitro; then',
-            `  /opt/aws/bin/cfn-signal --stack ${STACK_NAME} --resource ${node.nodeCFLogicalId} --region ${REGION} --success true`,
+            `  cfn-signal --stack ${STACK_NAME} --resource ${node.nodeCFLogicalId} --region ${REGION} --success true`,
             '  echo "✓ Setup complete"',
             'else',
-            `  /opt/aws/bin/cfn-signal --stack ${STACK_NAME} --resource ${node.nodeCFLogicalId} --region ${REGION} --success false`,
+            `  cfn-signal --stack ${STACK_NAME} --resource ${node.nodeCFLogicalId} --region ${REGION} --success false`,
             '  echo "✗ Service failed"',
             '  exit 1',
             'fi'
