@@ -6,21 +6,33 @@
 
 ## Architecture Overview
 
-This blueprint deploys a single Avalanche node on AWS. The solution is designed for development, testing, and production use cases.
+This blueprint provides three deployment options for Avalanche nodes on AWS:
 
-### Single Node Setup
-
-The solution deploys:
+### 1. Single Node (Development/Testing)
+A standalone Avalanche node for development and testing:
 - Single EC2 instance running AvalancheGo
-- EBS gp3 volume for blockchain data storage (1TB default for mainnet)
-- Security groups allowing P2P traffic (port 9651) and internal VPC access to HTTP API (port 9650)
-- CloudWatch monitoring with custom dashboards
-- IAM roles with Systems Manager access (no SSH required)
-- Optional S3 bucket for data snapshots (future HA setup)
+- EBS gp3 volume for blockchain data (1TB default)
+- CloudWatch monitoring
+- Systems Manager access (no SSH required)
 
-![Architecture Diagram](https://via.placeholder.com/800x400?text=Avalanche+Single+Node+Architecture)
+### 2. Sync Node (HA Foundation)
+A dedicated node that maintains blockchain state and creates S3 snapshots:
+- Single EC2 instance that syncs from genesis
+- Automated daily snapshots to S3 using s5cmd
+- Sync-checker monitoring (bootstrap status, peer count)
+- Foundation for HA RPC deployment
 
-The HTTP API port (9650) is restricted to the VPC CIDR range for security, while the P2P/staking port (9651) is open to enable network participation. Systems Manager Session Manager is used for secure terminal access instead of SSH.
+### 3. HA RPC Nodes (Production)
+High-availability setup with multiple nodes behind a load balancer:
+- 2-4 EC2 instances in Auto Scaling Group
+- Application Load Balancer for traffic distribution
+- Fast startup by restoring from S3 snapshots (minutes vs days)
+- Automatic scaling and self-healing
+- Production-ready for high-traffic RPC workloads
+
+![Architecture Diagram](https://via.placeholder.com/800x400?text=Avalanche+HA+Architecture)
+
+**Security:** The HTTP API port (9650) is restricted to VPC CIDR for RPC access, while the P2P/staking port (9651) is open for network participation. Systems Manager Session Manager provides secure terminal access without SSH.
 
 ## Well-Architected
 
@@ -40,7 +52,7 @@ The HTTP API port (9650) is restricted to the VPC CIDR range for security, while
 |                         |                                   | Following principle of least privilege access                                    | Node runs as dedicated "avalanche" user, not root.  |
 |                         | Application security              | Security focused development practices                                           | cdk-nag is used with appropriate suppressions.  |
 | Cost optimization       | Service selection                 | Use cost effective resources                                                     | c6i instances provide good price-performance. Graviton (c7g) options available for ARM64.  |
-|                         | Cost awareness                    | Estimate costs                                                                   | Single node with c6i.2xlarge (1TB gp3) costs ~$250-300/month in US East (N. Virginia). Graviton instances offer 20% cost savings. |
+|                         | Cost awareness                    | Estimate costs                                                                   | Single node: ~$250/month. HA setup (sync + 2 RPC nodes + ALB): ~$1,050/month. Graviton instances offer 20% cost savings. |
 | Reliability             | Data backup                       | How is data backed up?                                                           | Optional S3 snapshots can be configured using s5cmd for faster node recovery.  |
 |                         | Resource monitoring               | How are workload resources monitored?                                            | CloudWatch dashboards with CPU, disk, memory metrics via CloudWatch Agent.  |
 | Performance efficiency  | Compute selection                 | How is compute solution selected?                                                | c6i/c7g instance families provide compute-optimized performance for Avalanche nodes.  |
@@ -85,24 +97,37 @@ aws ec2 create-default-vpc
 
 > **NOTE:** The default VPC must have at least one public subnet with "Auto-assign public IPv4 address" set to YES.
 
-### Configure your Avalanche node
+### Configure your Avalanche deployment
 
-Navigate to the Avalanche blueprint directory and create your configuration:
+Navigate to the Avalanche blueprint directory:
 
 ```bash
 cd lib/avalanche
 pwd
 ```
 
-Choose a sample configuration based on your needs:
+Choose a sample configuration based on your deployment type:
 
-**For Mainnet on x86_64 instances:**
+**Option A: Single Node (Simple, No HA)**
 ```bash
 cp ./sample-configs/.env-mainnet-x86 .env
 nano .env
 ```
 
-**For Mainnet on ARM64 (Graviton) instances (20% cost savings):**
+**Option B: HA Setup (Sync Node + RPC Nodes)**
+```bash
+cp ./sample-configs/.env-ha-rpc-mainnet .env
+nano .env
+# Set AVALANCHE_SNAPSHOT_TYPE="s3"
+```
+
+**Option C: Sync Node Only**
+```bash
+cp ./sample-configs/.env-sync-node-mainnet .env
+nano .env
+```
+
+**For ARM64 (Graviton) - 20% cost savings:**
 ```bash
 cp ./sample-configs/.env-mainnet-arm64 .env
 nano .env
@@ -114,35 +139,70 @@ cp ./sample-configs/.env-fuji-x86 .env
 nano .env
 ```
 
-Edit the `.env` file and set at minimum:
+Edit the `.env` file and configure:
+
+**Required:**
 - `AWS_ACCOUNT_ID`: Your AWS account ID
 - `AWS_REGION`: Your target AWS region (e.g., us-east-1)
 
-Optional configurations:
-- `AVALANCHEGO_VERSION`: AvalancheGo version to deploy (check [latest releases](https://github.com/ava-labs/avalanchego/releases))
-- `AVALANCHE_SINGLE_NODE_INSTANCE_TYPE`: EC2 instance type (c6i.2xlarge, c7g.2xlarge, etc.)
-- `AVALANCHE_SINGLE_NODE_DATA_VOL_SIZE`: Data volume size in GiB (1000 for mainnet, 500 for Fuji)
+**Optional:**
+- `AVALANCHEGO_VERSION`: AvalancheGo version (check [latest releases](https://github.com/ava-labs/avalanchego/releases))
+- `AVALANCHE_SNAPSHOT_TYPE`: `"none"` for single node, `"s3"` for HA setup
+- Instance types and storage sizes for each deployment type
 
-### Deploy the Avalanche node
+### Deploy Avalanche Nodes
 
-1. Deploy common stack with IAM roles and optional S3 bucket:
+#### Option A: Single Node Deployment
 
+1. Deploy common stack:
 ```bash
 npx cdk deploy avalanche-common
 ```
 
-2. Deploy the single Avalanche node:
-
+2. Deploy single node:
 ```bash
 npx cdk deploy avalanche-single-node
 ```
 
-The deployment will take approximately 10-15 minutes. CloudFormation will provision:
-- EC2 instance with Amazon Linux 2023
-- Encrypted EBS gp3 data volume
-- Security groups
-- CloudWatch monitoring and dashboard
-- IAM roles for Systems Manager access
+Deployment takes ~3-5 minutes. The node will sync from genesis (6-12 hours for mainnet).
+
+#### Option B: HA Deployment (Production)
+
+1. Deploy common stack with S3 bucket:
+```bash
+# Ensure AVALANCHE_SNAPSHOT_TYPE="s3" in .env
+npx cdk deploy avalanche-common
+```
+
+2. Deploy sync node:
+```bash
+npx cdk deploy avalanche-sync-node
+```
+
+3. **Wait 24-48 hours** for sync node to complete mainnet sync and upload first snapshot to S3.
+
+Monitor sync progress:
+```bash
+INSTANCE_ID=$(aws cloudformation describe-stacks --stack-name avalanche-sync-node-mainnet --query 'Stacks[0].Outputs[?OutputKey==`nodeinstanceid`].OutputValue' --output text)
+aws ssm start-session --target $INSTANCE_ID
+sudo journalctl -u avalanchego -f
+```
+
+4. Once sync completes, deploy HA RPC nodes:
+```bash
+npx cdk deploy avalanche-rpc-nodes
+```
+
+RPC nodes will:
+- Restore from S3 snapshot (fast startup in minutes)
+- Join Auto Scaling Group and ALB
+- Serve RPC traffic with high availability
+
+Access RPC via ALB:
+```bash
+ALB_DNS=$(aws cloudformation describe-stacks --stack-name avalanche-rpc-nodes-mainnet --query 'Stacks[0].Outputs[?OutputKey==`alburl`].OutputValue' --output text)
+curl -X POST --data '{"jsonrpc":"2.0","id":1,"method":"info.getNodeVersion"}' -H 'content-type:application/json;' $ALB_DNS/ext/info
+```
 
 ### Verify deployment
 
@@ -228,11 +288,20 @@ sudo journalctl -u avalanchego --since "1 hour ago"
 | Instance Type | vCPUs | Memory | Network | Use Case | Monthly Cost* |
 |--------------|-------|---------|---------|----------|--------------|
 | c6i.xlarge   | 4     | 8 GiB   | Up to 12.5 Gbps | Fuji testnet | ~$125 |
-| c6i.2xlarge  | 8     | 16 GiB  | Up to 12.5 Gbps | Mainnet | ~$250 |
-| c7g.2xlarge  | 8     | 16 GiB  | Up to 15 Gbps | Mainnet (Graviton, 20% cheaper) | ~$200 |
-| c6i.4xlarge  | 16    | 32 GiB  | Up to 12.5 Gbps | Validator | ~$500 |
+| c6i.2xlarge  | 8     | 16 GiB  | Up to 12.5 Gbps | Single node / RPC node | ~$245 |
+| c7g.2xlarge  | 8     | 16 GiB  | Up to 15 Gbps | Single/RPC (Graviton, 20% cheaper) | ~$195 |
+| c6i.4xlarge  | 16    | 32 GiB  | Up to 12.5 Gbps | Sync node / Validator | ~$490 |
 
 *Estimated costs in US East (N. Virginia) including EBS storage
+
+### Deployment Cost Comparison
+
+| Deployment Type | Components | Monthly Cost (us-east-1)* |
+|----------------|------------|--------------------------|
+| Single Node | 1x c6i.2xlarge + 1TB storage | ~$245 |
+| HA Setup | Sync node (c6i.4xlarge) + 2x RPC nodes (c6i.2xlarge) + ALB + S3 | ~$1,050 |
+
+*Includes compute, storage, data transfer, and ALB costs
 
 ### Storage Requirements
 
@@ -248,15 +317,25 @@ sudo journalctl -u avalanchego --since "1 hour ago"
 
 To avoid ongoing charges, delete the stacks:
 
+**For Single Node:**
 ```bash
-# Delete the node stack first
 npx cdk destroy avalanche-single-node
-
-# Then delete the common stack
 npx cdk destroy avalanche-common
 ```
 
-> **WARNING:** This will permanently delete your node data. Backup important data before destroying.
+**For HA Setup:**
+```bash
+# Delete in reverse order
+npx cdk destroy avalanche-rpc-nodes
+npx cdk destroy avalanche-sync-node
+npx cdk destroy avalanche-common
+
+# Optionally delete S3 snapshots
+aws s3 rm s3://avalanche-nodes-common-<account-id>-<region> --recursive
+aws s3 rb s3://avalanche-nodes-common-<account-id>-<region>
+```
+
+> **WARNING:** This will permanently delete your node data and S3 snapshots. Backup important data before destroying.
 
 ## Troubleshooting
 
@@ -299,6 +378,8 @@ Consider upgrading to c6i.4xlarge or c7g.4xlarge if sync is too slow.
 - [Avalanche Documentation](https://docs.avax.network/)
 - [AvalancheGo GitHub](https://github.com/ava-labs/avalanchego)
 - [Avalanche Node Requirements](https://docs.avax.network/nodes/run/node-manually#hardware-and-os-requirements)
+- [Detailed Deployment Guide](./DEPLOYMENT.md) - Comprehensive guide with monitoring and troubleshooting
+- [AWS Blog: Run Ethereum Nodes on AWS](https://aws.amazon.com/blogs/web3/run-ethereum-nodes-on-aws/) - Similar HA architecture pattern
 - [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
 - [AWS Systems Manager Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html)
 
