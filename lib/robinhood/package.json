@@ -1,0 +1,37 @@
+{
+  "name": "robinhood-chain-node-runner",
+  "version": "1.0.0",
+  "description": "AWS CDK app for deploying Robinhood Chain nodes",
+  "main": "app.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk"
+  },
+  "keywords": [
+    "aws",
+    "cdk",
+    "robinhood",
+    "arbitrum-orbit",
+    "nitro",
+    "blockchain"
+  ],
+  "author": "",
+  "license": "MIT-0",
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.100.0",
+    "cdk-nag": "^2.27.0",
+    "constructs": "^10.0.0",
+    "dotenv": "^16.0.0",
+    "source-map-support": "^0.5.21"
+  }
+}
