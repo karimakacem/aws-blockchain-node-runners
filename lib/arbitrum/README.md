@@ -15,7 +15,7 @@ This blueprint deploys Arbitrum One nodes on AWS using the Nitro stack. Arbitrum
 Ideal for development, testing, or personal use:
 - Single EC2 instance running Arbitrum Nitro node in Docker
 - EBS gp3 volume for blockchain data storage (2TB recommended)
-- Automated snapshot download from official Arbitrum snapshots
+- Automated snapshot download for fast initial sync
 - Security groups with VPC-only RPC/WS access
 - CloudWatch monitoring with custom dashboards
 - IAM roles with Systems Manager access (no SSH required)
@@ -25,14 +25,14 @@ Ideal for development, testing, or personal use:
 Production-ready setup with load balancing:
 - Multiple RPC nodes (2-4) behind Application Load Balancer
 - Auto Scaling Group manages node lifecycle
-- Each node downloads official snapshots independently
+- Each node downloads snapshot for fast initial sync
 - Health checks ensure only synced nodes receive traffic
 - Automatic failover if a node becomes unhealthy
 - VPC-only access with ALB distributing requests
 
 **Key Features:**
 - Uses official Nitro Docker images from Offchain Labs
-- Downloads pruned or archive snapshots for fast initialization
+- Automated snapshot download from Arbitrum's API for fast initial sync
 - Connects to your Ethereum L1 RPC and Beacon endpoints
 - Secure RPC access restricted to VPC
 
@@ -154,10 +154,11 @@ npx cdk deploy arbitrum-one-rpc-nodes
 
 Deployment takes approximately:
 - Stack creation: 5-10 minutes
-- Snapshot download: 30-60 minutes (pruned snapshot ~400-600GB)
-- Initial sync: 15-30 minutes after snapshot
+- Snapshot download and sync: 1-2 hours
 
 Total time to fully operational node: ~1-2 hours
+
+> **Note:** Snapshots are downloaded from Arbitrum's API at snapshot-explorer.arbitrum.io. The download script fetches the latest snapshot in multipart format and extracts it automatically.
 
 For HA setup, nodes come online sequentially. The ALB health checks ensure only synced nodes receive traffic.
 

@@ -2,7 +2,7 @@
 set -e
 
 # Download and extract Arbitrum snapshot
-# Snapshots provided by Offchain Labs: https://snapshot.arbitrum.io/
+# Snapshots from: https://snapshot-explorer.arbitrum.io/
 
 NETWORK=${1:-arb1}
 SNAPSHOT_TYPE=${2:-pruned}
@@ -10,20 +10,20 @@ DATA_DIR=${3:-/data/nitro}
 
 echo "=== Arbitrum Snapshot Download ==="
 echo "Network: $NETWORK"
-echo "Snapshot Type: $SNAPSHOT_TYPE"
+echo "Snapshot Type: $SNAPSHOT_TYPE (converted to API format)"
 echo "Data Directory: $DATA_DIR"
 echo ""
 
-# Determine snapshot URL based on network and type
+# Map network names for API
 case "$NETWORK" in
     arb1)
-        SNAPSHOT_BASE_URL="https://snapshot.arbitrum.foundation/arb1"
+        API_NETWORK="arb1"
         ;;
     nova)
-        SNAPSHOT_BASE_URL="https://snapshot.arbitrum.foundation/nova"
+        API_NETWORK="nova"
         ;;
     sepolia-rollup)
-        SNAPSHOT_BASE_URL="https://snapshot.arbitrum.foundation/sepolia-rollup"
+        API_NETWORK="sepolia"
         ;;
     *)
         echo "ERROR: Unknown network: $NETWORK"
@@ -31,51 +31,88 @@ case "$NETWORK" in
         ;;
 esac
 
+# Map snapshot type to API format
+case "$SNAPSHOT_TYPE" in
+    pruned)
+        API_TYPE="Pruned"
+        ;;
+    archive)
+        API_TYPE="Archive"
+        ;;
+    *)
+        echo "WARNING: Unknown snapshot type '$SNAPSHOT_TYPE', will sync from genesis"
+        exit 0
+        ;;
+esac
+
 # Create data directory
 mkdir -p "$DATA_DIR"
 cd "$DATA_DIR"
 
-# Get latest snapshot filename
-echo "Fetching latest $SNAPSHOT_TYPE snapshot list..."
-SNAPSHOT_FILE=$(curl -s "${SNAPSHOT_BASE_URL}/${SNAPSHOT_TYPE}-list.txt" | tail -1)
+# Fetch latest snapshot info from API
+echo "Fetching latest $API_TYPE snapshot for $API_NETWORK..."
+SNAPSHOT_INFO=$(curl -s "https://snapshot-explorer.arbitrum.io/api/snapshots" | jq -r ".data[] | select(.name==\"$API_NETWORK\") | .snapshotsByType[] | select(.type==\"$API_TYPE\") | .snapshots[0]")
 
-if [ -z "$SNAPSHOT_FILE" ]; then
-    echo "ERROR: Could not determine snapshot filename"
-    exit 1
+if [ -z "$SNAPSHOT_INFO" ] || [ "$SNAPSHOT_INFO" = "null" ]; then
+    echo "WARNING: No $API_TYPE snapshot available, will sync from genesis"
+    exit 0
 fi
 
-SNAPSHOT_URL="${SNAPSHOT_BASE_URL}/${SNAPSHOT_FILE}"
-echo "Snapshot URL: $SNAPSHOT_URL"
+# Check if snapshot is finished
+IS_FINISHED=$(echo "$SNAPSHOT_INFO" | jq -r '.isFinished // false')
+if [ "$IS_FINISHED" != "true" ]; then
+    echo "WARNING: Latest snapshot not finished, will sync from genesis"
+    exit 0
+fi
+
+# Get snapshot parts
+PARTS=$(echo "$SNAPSHOT_INFO" | jq -r '.parts[].key')
+PART_COUNT=$(echo "$PARTS" | wc -l | tr -d ' ')
+
+echo "Found $PART_COUNT part(s) to download"
 echo ""
 
-# Download snapshot with progress
-echo "Downloading snapshot (this may take 30-60 minutes)..."
+# Download all parts
+SNAPSHOT_BASE="https://snapshot.arbitrum.io"
+PART_NUM=0
 SECONDS=0
 
-wget -c -q --show-progress "$SNAPSHOT_URL" -O snapshot.tar || {
-    echo "ERROR: Download failed"
-    exit 1
-}
+for PART_KEY in $PARTS; do
+    PART_URL="${SNAPSHOT_BASE}/${PART_KEY}"
+    PART_FILE=$(basename "$PART_KEY")
 
+    echo "Downloading part $((PART_NUM + 1))/$PART_COUNT: $PART_FILE"
+    wget -c -q --show-progress "$PART_URL" -O "$PART_FILE" || {
+        echo "ERROR: Download failed for $PART_FILE"
+        rm -f *.part*
+        exit 1
+    }
+
+    PART_NUM=$((PART_NUM + 1))
+done
+
+DOWNLOAD_TIME=$(($SECONDS / 60))
 echo ""
-echo "Download completed in $(($SECONDS / 60)) minutes"
+echo "Download completed in $DOWNLOAD_TIME minutes"
 echo ""
 
-# Extract snapshot
-echo "Extracting snapshot (this may take 10-20 minutes)..."
+# Combine and extract parts
+echo "Combining and extracting snapshot parts..."
 SECONDS=0
 
-tar -xf snapshot.tar || {
+# Cat all parts together and extract directly
+cat *.part* | tar -xf - || {
     echo "ERROR: Extraction failed"
-    rm -f snapshot.tar
+    rm -f *.part*
     exit 1
 }
 
-echo "Extraction completed in $(($SECONDS / 60)) minutes"
+EXTRACT_TIME=$(($SECONDS / 60))
+echo "Extraction completed in $EXTRACT_TIME minutes"
 echo ""
 
 # Cleanup
-rm -f snapshot.tar
+rm -f *.part*
 echo "Snapshot download and extraction complete!"
 echo "Data directory: $DATA_DIR"
-ls -lh "$DATA_DIR"
+ls -lh "$DATA_DIR" | head -10
