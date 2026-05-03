@@ -1,0 +1,23 @@
+{
+  "name": "circle-arc-node-runner",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "~5.7.2",
+    "ts-node": "^10.9.2",
+    "aws-cdk": "2.177.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.177.0",
+    "constructs": "^10.0.0",
+    "dotenv": "^16.4.7",
+    "source-map-support": "^0.5.21",
+    "cdk-nag": "^2.32.35"
+  }
+}

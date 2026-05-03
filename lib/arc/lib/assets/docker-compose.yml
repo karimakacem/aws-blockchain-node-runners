@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  arc-execution:
+    image: docker.cloudsmith.io/circle/arc-network/arc-execution:${ARC_VERSION}
+    container_name: arc-execution
+    restart: unless-stopped
+    volumes:
+      - /data/arc-execution:/data
+      - /data/arc-run:/run
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "9001:9001"
+    command: >
+      node
+      --chain arc-testnet
+      --datadir /data
+      --full
+      --http
+      --http.addr 0.0.0.0
+      --http.port 8545
+      --http.api eth,net,web3,txpool,trace,debug
+      --ws
+      --ws.addr 0.0.0.0
+      --ws.port 8546
+      --ws.api eth,net,web3
+      --auth-ipc
+      --auth-ipc.path /run/auth.ipc
+      --ipcpath /run/reth.ipc
+      --metrics 0.0.0.0:9001
+      --disable-discovery
+      --enable-arc-rpc
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  arc-consensus:
+    image: docker.cloudsmith.io/circle/arc-network/arc-consensus:${ARC_VERSION}
+    container_name: arc-consensus
+    restart: unless-stopped
+    depends_on:
+      arc-execution:
+        condition: service_healthy
+    volumes:
+      - /data/arc-consensus:/home
+      - /data/arc-run:/run
+    ports:
+      - "31000:31000"
+      - "29000:29000"
+    command: >
+      start
+      --home /home
+      --eth-socket /run/reth.ipc
+      --execution-socket /run/auth.ipc
+      --rpc.addr 0.0.0.0:31000
+      --follow
+      --follow.endpoint https://rpc.drpc.testnet.arc.network
+      --follow.endpoint https://rpc.quicknode.testnet.arc.network
+      --follow.endpoint https://rpc.blockdaemon.testnet.arc.network
+      --full
+      --execution-persistence-backpressure
+      --execution-persistence-backpressure-threshold=50
+      --metrics 0.0.0.0:29000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:29000/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
