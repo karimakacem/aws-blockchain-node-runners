@@ -117,12 +117,12 @@ export class RobinhoodSingleNodeStack extends cdk.Stack {
             },
         });
 
-        // Override creation policy timeout for genesis sync
+        // Override creation policy timeout for genesis sync (testnet takes 2-3 hours)
         const cfnInstance = node.instance.node.defaultChild as ec2.CfnInstance;
         cfnInstance.cfnOptions.creationPolicy = {
             resourceSignal: {
                 count: 1,
-                timeout: "PT90M",  // 90 minutes for initial sync
+                timeout: "PT180M",  // 180 minutes (3 hours) for genesis sync from Sepolia
             },
         };
 
