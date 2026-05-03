@@ -16,6 +16,7 @@ export interface SingleNodeConstructCustomProps {
   securityGroup: cdk.aws_ec2.ISecurityGroup,
   availabilityZone: string,
   vpcSubnets: cdk.aws_ec2.SubnetSelection,
+  skipVolumeAttachment?: boolean,
 }
 export class SingleNodeConstruct extends cdkContructs.Construct {
     public instanceId: string;
@@ -98,12 +99,15 @@ export class SingleNodeConstruct extends cdkContructs.Construct {
         }
 
 
-      new ec2.CfnVolumeAttachment(this, `data-volume${dataVolumeIndex}-attachment`, {
-          // Device naming according to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
-          device: constants.VolumeDeviceNames[arrayIndex],
-          instanceId: singleNode.instanceId,
-          volumeId: newDataVolume.volumeId,
-        });
+      // Only create VolumeAttachment if not manually handled in user-data
+      if (!props.skipVolumeAttachment) {
+        new ec2.CfnVolumeAttachment(this, `data-volume${dataVolumeIndex}-attachment`, {
+            // Device naming according to https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
+            device: constants.VolumeDeviceNames[arrayIndex],
+            instanceId: singleNode.instanceId,
+            volumeId: newDataVolume.volumeId,
+          });
+      }
 
         dataVolumeIDs[arrayIndex] = newDataVolume.volumeId;
       }

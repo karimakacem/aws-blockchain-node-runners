@@ -122,66 +122,138 @@ export class AvalancheNode extends Construct {
     cdk.Tags.of(this.instance).add('Network', config.avalancheNetwork);
   }
 
-  private createUserData(config: AvalancheNodeConfig): ec2.UserData {
-    const userData = ec2.UserData.forLinux();
+private createUserData(config: AvalancheNodeConfig): ec2.UserData {
+  const userData = ec2.UserData.forLinux();
+  
+  userData.addCommands(
+    '#!/bin/bash',
+    'exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1',
+    'echo "Starting Avalanche node setup..."',
     
-    userData.addCommands(
-      '#!/bin/bash',
-      'set -e',
-      'exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1',
-      
-      // Update system
-      'yum update -y',
-      'yum install -y wget curl jq',
-      
-      // Create avalanche user
-      'useradd -r -s /bin/false avalanche || true',
-      'mkdir -p /opt/avalanche /var/lib/avalanche /var/log/avalanche',
-      'chown avalanche:avalanche /var/lib/avalanche /var/log/avalanche',
-      
-      // Wait for EBS volume and format/mount
-      'echo "Waiting for EBS volume..."',
-      'while [ ! -e /dev/xvdf ]; do sleep 1; done',
-      'sleep 5', // Give it a moment to be ready
-      
-      // Check if volume is already formatted
-      'if ! blkid /dev/xvdf; then',
-      '  echo "Formatting EBS volume..."',
-      '  mkfs -t ext4 /dev/xvdf',
-      'fi',
-      
-      'mkdir -p /var/lib/avalanche/data',
-      'mount /dev/xvdf /var/lib/avalanche/data',
-      'chown -R avalanche:avalanche /var/lib/avalanche/data',
-      'echo "/dev/xvdf /var/lib/avalanche/data ext4 defaults,nofail 0 2" >> /etc/fstab',
-      
-      // Download AvalancheGo
-      'echo "Downloading AvalancheGo..."',
-      'cd /opt/avalanche',
-      `wget -q https://github.com/ava-labs/avalanchego/releases/download/${config.avalanchegoVersion}/avalanchego-linux-amd64-${config.avalanchegoVersion}.tar.gz`,
-      `tar -xzf avalanchego-linux-amd64-${config.avalanchegoVersion}.tar.gz`,
-      `mv avalanchego-${config.avalanchegoVersion} current`,
-      'chmod +x current/avalanchego',
-      'chown -R avalanche:avalanche /opt/avalanche',
-      
-      // Create systemd service
-      this.createSystemdService(config),
-      
-      // Start service
-      'systemctl daemon-reload',
-      'systemctl enable avalanchego',
-      'systemctl start avalanchego',
-      
-      'echo "Avalanche node setup completed successfully"'
-    );
-
-    return userData;
-  }
-
-  private createSystemdService(config: AvalancheNodeConfig): string {
-    const networkFlag = config.avalancheNetwork === 'mainnet' ? '' : `--network-id=${config.avalancheNetwork}`;
+    // Update system
+    'yum update -y',
+    'yum install -y wget curl jq',
     
-    return `cat > /etc/systemd/system/avalanchego.service << 'EOF'
+    // Create avalanche user
+    'useradd -r -s /bin/false avalanche || true',
+    'mkdir -p /opt/avalanche /var/lib/avalanche /var/log/avalanche',
+    'chown avalanche:avalanche /var/lib/avalanche /var/log/avalanche',
+    
+    // Wait for EBS volume with better detection and logging
+    'echo "Waiting for EBS volume..."',
+    'DEVICE=""',
+    'for i in {1..30}; do',
+    '  echo "Attempt $i/30: Looking for EBS volume..."',
+    '  if [ -e /dev/xvdf ]; then',
+    '    DEVICE="/dev/xvdf"',
+    '    echo "Found traditional device: $DEVICE"',
+    '    break',
+    '  fi',
+    '  if [ -e /dev/nvme1n1 ]; then',
+    '    DEVICE="/dev/nvme1n1"',
+    '    echo "Found NVMe device: $DEVICE"',
+    '    break',
+    '  fi',
+    '  lsblk',
+    '  sleep 10',
+    'done',
+    
+    'if [ -z "$DEVICE" ]; then',
+    '  echo "ERROR: EBS volume not found after 5 minutes"',
+    '  echo "Available block devices:"',
+    '  lsblk',
+    '  ls -la /dev/nvme* /dev/xvd* 2>/dev/null || echo "No matching devices found"',
+    '  exit 1',
+    'fi',
+    
+    'echo "Found EBS volume at $DEVICE"',
+    
+    // Check if volume is already formatted
+    'echo "Checking if volume is formatted..."',
+    'if ! blkid $DEVICE; then',
+    '  echo "Formatting EBS volume with ext4..."',
+    '  mkfs -t ext4 $DEVICE',
+    '  if [ $? -ne 0 ]; then',
+    '    echo "ERROR: Failed to format volume"',
+    '    exit 1',
+    '  fi',
+    'else',
+    '  echo "Volume is already formatted"',
+    'fi',
+    
+    'echo "Mounting EBS volume..."',
+    'mkdir -p /var/lib/avalanche/data',
+    'mount $DEVICE /var/lib/avalanche/data',
+    'if [ $? -ne 0 ]; then',
+    '  echo "ERROR: Failed to mount volume"',
+    '  exit 1',
+    'fi',
+    
+    'chown -R avalanche:avalanche /var/lib/avalanche/data',
+    'echo "$DEVICE /var/lib/avalanche/data ext4 defaults,nofail 0 2" >> /etc/fstab',
+    'echo "EBS volume mounted successfully at /var/lib/avalanche/data"',
+    
+    // Download AvalancheGo
+    'echo "Downloading AvalancheGo..."',
+    'cd /opt/avalanche',
+    `wget -q https://github.com/ava-labs/avalanchego/releases/download/${config.avalanchegoVersion}/avalanchego-linux-amd64-${config.avalanchegoVersion}.tar.gz`,
+    'if [ $? -ne 0 ]; then',
+    '  echo "ERROR: Failed to download AvalancheGo"',
+    '  exit 1',
+    'fi',
+    
+    'echo "Extracting AvalancheGo..."',
+    `tar -xzf avalanchego-linux-amd64-${config.avalanchegoVersion}.tar.gz`,
+    'if [ $? -ne 0 ]; then',
+    '  echo "ERROR: Failed to extract AvalancheGo"',
+    '  exit 1',
+    'fi',
+    
+    `mv avalanchego-${config.avalanchegoVersion} current`,
+    'chmod +x current/avalanchego',
+    'chown -R avalanche:avalanche /opt/avalanche',
+    
+    // Test the binary
+    'echo "Testing AvalancheGo binary..."',
+    '/opt/avalanche/current/avalanchego --version',
+    'if [ $? -ne 0 ]; then',
+    '  echo "ERROR: AvalancheGo binary test failed"',
+    '  exit 1',
+    'fi',
+    
+    // Create systemd service
+    'echo "Creating systemd service..."',
+    this.createSystemdService(config),
+    
+    // Start service
+    'echo "Starting AvalancheGo service..."',
+    'systemctl daemon-reload',
+    'systemctl enable avalanchego',
+    'systemctl start avalanchego',
+    
+    // Check service status
+    'sleep 10',
+    'systemctl is-active avalanchego',
+    'if [ $? -eq 0 ]; then',
+    '  echo "✓ AvalancheGo service is running"',
+    'else',
+    '  echo "✗ AvalancheGo service failed to start"',
+    '  systemctl status avalanchego',
+    '  journalctl -u avalanchego -n 20',
+    'fi',
+    
+    'echo "Avalanche node setup completed!"',
+    'echo "Check service status with: systemctl status avalanchego"',
+    'echo "View logs with: journalctl -u avalanchego -f"'
+  );
+
+  return userData;
+}
+
+private createSystemdService(config: AvalancheNodeConfig): string {
+  const networkFlag = config.avalancheNetwork === 'mainnet' ? '' : `--network-id=${config.avalancheNetwork}`;
+  
+  return `cat > /etc/systemd/system/avalanchego.service << 'EOF'
 [Unit]
 Description=AvalancheGo Node
 After=network.target
@@ -211,6 +283,7 @@ SyslogIdentifier=avalanchego
 
 [Install]
 WantedBy=multi-user.target
-EOF`;
-  }
+EOF
+echo "Systemd service file created"`;
+    }
 }
