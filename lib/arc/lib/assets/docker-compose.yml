@@ -5,6 +5,9 @@ services:
     image: docker.cloudsmith.io/circle/arc-network/arc-execution:${ARC_VERSION}
     container_name: arc-execution
     restart: unless-stopped
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - /data/arc-execution:/data
       - /data/arc-run:/run
@@ -42,6 +45,9 @@ services:
     image: docker.cloudsmith.io/circle/arc-network/arc-consensus:${ARC_VERSION}
     container_name: arc-consensus
     restart: unless-stopped
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       arc-execution:
         condition: service_healthy

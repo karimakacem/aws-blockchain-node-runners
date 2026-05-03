@@ -19,8 +19,19 @@ mkdir -p "$EXECUTION_DIR" "$CONSENSUS_DIR"
 if ! command -v arc-snapshots &> /dev/null; then
     echo "Installing arc-snapshots tool..."
 
-    # Download and install arcup
-    curl -L https://raw.githubusercontent.com/circlefin/arc-node/main/arcup/install | bash
+    # Download and install arcup (with integrity check)
+    INSTALL_SCRIPT=$(mktemp)
+    curl -L https://raw.githubusercontent.com/circlefin/arc-node/main/arcup/install -o "$INSTALL_SCRIPT"
+
+    # Verify the script looks legitimate (basic sanity check)
+    if grep -q "arc-snapshots" "$INSTALL_SCRIPT" && grep -q "ARC_HOME" "$INSTALL_SCRIPT"; then
+        bash "$INSTALL_SCRIPT"
+        rm -f "$INSTALL_SCRIPT"
+    else
+        echo "ERROR: Downloaded install script appears invalid"
+        rm -f "$INSTALL_SCRIPT"
+        exit 1
+    fi
 
     # Source environment
     if [ -f "$HOME/.arc/env" ]; then
