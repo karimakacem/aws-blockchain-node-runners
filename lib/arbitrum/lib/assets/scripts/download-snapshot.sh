@@ -73,7 +73,7 @@ echo "Found $PART_COUNT part(s) to download"
 echo ""
 
 # Download all parts
-SNAPSHOT_BASE="https://snapshot.arbitrum.io"
+SNAPSHOT_BASE="https://snapshot.arbitrum.foundation"
 PART_NUM=0
 SECONDS=0
 
