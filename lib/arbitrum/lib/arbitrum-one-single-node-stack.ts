@@ -111,12 +111,12 @@ export class ArbitrumOneSingleNodeStack extends cdk.Stack {
             },
         });
 
-        // Override creation policy timeout for snapshot download (30-90 minutes)
+        // Override creation policy timeout for snapshot download (2-3 hours for 2.3TB download + extraction)
         const cfnInstance = node.instance.node.defaultChild as ec2.CfnInstance;
         cfnInstance.cfnOptions.creationPolicy = {
             resourceSignal: {
                 count: 1,
-                timeout: "PT90M",  // 90 minutes for snapshot download + sync
+                timeout: "PT180M",  // 180 minutes (3 hours) for snapshot download + extraction
             },
         };
 
