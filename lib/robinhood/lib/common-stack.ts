@@ -48,6 +48,14 @@ export class RobinhoodCommonStack extends cdk.Stack {
             })
         );
 
+        // Allow attaching EBS volumes (needed for manual volume attachment in user-data)
+        instanceRole.addToPolicy(
+            new iam.PolicyStatement({
+                resources: ["*"],
+                actions: ["ec2:AttachVolume", "ec2:DescribeVolumes"],
+            })
+        );
+
         // Grant read access to assets bucket
         asset.bucket.grantRead(instanceRole);
 

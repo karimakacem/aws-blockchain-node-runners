@@ -115,7 +115,11 @@ export class RobinhoodSingleNodeStack extends cdk.Stack {
             vpcSubnets: {
                 subnetType: ec2.SubnetType.PUBLIC,
             },
+            skipVolumeAttachment: true,
         });
+
+        // Get the volume ID for manual attachment in user-data
+        const dataVolumeId = (node.node.findChild('data-volume-1').node.defaultChild as ec2.CfnVolume).ref;
 
         // Override creation policy timeout for genesis sync (testnet takes 2-3 hours)
         const cfnInstance = node.instance.node.defaultChild as ec2.CfnInstance;
@@ -137,17 +141,17 @@ export class RobinhoodSingleNodeStack extends cdk.Stack {
             'systemctl enable docker',
             'systemctl start docker',
             '',
-            '# Wait for and mount data volume (find any unpartitioned disk that is not the root)',
+            '# Attach and mount data volume',
+            `VOLUME_ID="${dataVolumeId}"`,
+            'INSTANCE_ID=$(ec2-metadata --instance-id | cut -d " " -f 2)',
+            `aws ec2 attach-volume --region ${REGION} --volume-id $VOLUME_ID --instance-id $INSTANCE_ID --device /dev/sdf`,
             'DEVICE=""',
             'for i in {1..30}; do',
-            '  DEVICE=$(lsblk -dpno NAME,TYPE | awk \'$2=="disk"{print $1}\' | while read d; do',
-            '    mountpoint=$(lsblk -no MOUNTPOINT "$d" 2>/dev/null | head -1)',
-            '    [ -z "$mountpoint" ] && echo "$d" && break',
-            '  done)',
-            '  [ -n "$DEVICE" ] && break',
+            '  if [ -e /dev/nvme1n1 ]; then DEVICE="/dev/nvme1n1"; break; fi',
+            '  if [ -e /dev/xvdf ]; then DEVICE="/dev/xvdf"; break; fi',
             '  sleep 10',
             'done',
-            '[ -z "$DEVICE" ] && echo "ERROR: data volume not found" && exit 1',
+            '[ -z "$DEVICE" ] && echo "ERROR: data volume not found after 5 minutes" && exit 1',
             'echo "Found data volume: $DEVICE"',
             'if ! blkid $DEVICE; then mkfs -t ext4 $DEVICE; fi',
             'mkdir -p /data',
