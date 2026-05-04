@@ -193,6 +193,7 @@ export class ArbitrumOneSingleNodeStack extends cdk.Stack {
             `  --parent-chain.blob-client.beacon-url ${l1BeaconUrl} \\`,
             `  --chain.name ${network} \\`,
             '  --node.staker.enable=false \\',
+            '  --init.empty \\',
             '  --http.addr 0.0.0.0 \\',
             `  --http.port ${rpcPort} \\`,
             '  --http.vhosts=* \\',
