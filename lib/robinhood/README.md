@@ -259,7 +259,7 @@ sudo journalctl -u nitro -f
 - **Sequencer**: https://sequencer.testnet.chain.robinhood.com
 - **Data Feed**: wss://feed.testnet.chain.robinhood.com
 - **Bridge Address**: 0x96295BDad104eaD97cC08797b3dC68efF59CcF30 (on Sepolia)
-- **Config File**: https://cdn.robinhood.com/chain/testnet/robinhood-chain-testnet-config.json
+- **Config File**: https://cdn.robinhood.com/assets/generated_assets/hoodchain_docsite/chain-node-configs/robinhood-chain-testnet-config.json
 
 ## Clean Up
 
@@ -310,7 +310,7 @@ cat /data/nitro/robinhood-chain-testnet-config.json
 
 Solution: Verify config URL is accessible:
 ```bash
-wget https://cdn.robinhood.com/chain/testnet/robinhood-chain-testnet-config.json
+curl https://cdn.robinhood.com/assets/generated_assets/hoodchain_docsite/chain-node-configs/robinhood-chain-testnet-config.json
 ```
 
 ### High memory usage

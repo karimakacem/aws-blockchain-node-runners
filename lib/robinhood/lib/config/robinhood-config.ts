@@ -22,7 +22,7 @@ export const baseConfig: configTypes.RobinhoodBaseConfig = {
     region: process.env.AWS_REGION || "us-east-1",
     network: <configTypes.RobinhoodNetwork>process.env.ROBINHOOD_NETWORK || "robinhood-testnet",
     nodeType: <configTypes.RobinhoodNodeType>process.env.ROBINHOOD_NODE_TYPE || "full",
-    nitroVersion: process.env.NITRO_VERSION || "v3.2.1-d81324d",
+    nitroVersion: process.env.NITRO_VERSION || "v3.9.8-4624977",
     // Ethereum Sepolia L1 endpoints (required for Robinhood Chain testnet)
     l1RpcUrl: process.env.L1_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
     l1BeaconUrl: process.env.L1_BEACON_URL || "https://ethereum-sepolia-beacon-api.publicnode.com",
