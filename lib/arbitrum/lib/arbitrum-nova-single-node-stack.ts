@@ -140,6 +140,7 @@ export class ArbitrumNovaSingleNodeStack extends cdk.Stack {
             '',
             '# Create directories',
             'mkdir -p /data/nitro /opt/arbitrum/scripts',
+            'chmod 777 /data/nitro',
             '',
             '# Download assets',
             `aws s3 cp s3://${assetsBucket}/${assetsKey} /tmp/assets.zip`,
