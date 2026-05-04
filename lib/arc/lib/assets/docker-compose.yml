@@ -34,6 +34,7 @@ services:
       --metrics 0.0.0.0:9001
       --disable-discovery
       --enable-arc-rpc
+      --rpc.forwarder https://rpc.quicknode.testnet.arc.network/
   arc-consensus:
     image: docker.cloudsmith.io/circle/arc-network/arc-consensus:${ARC_VERSION}
     container_name: arc-consensus
@@ -57,9 +58,9 @@ services:
       --execution-socket /run/auth.ipc
       --rpc.addr 0.0.0.0:31000
       --follow
-      --follow.endpoint https://rpc.drpc.testnet.arc.network
-      --follow.endpoint https://rpc.quicknode.testnet.arc.network
-      --follow.endpoint https://rpc.blockdaemon.testnet.arc.network
+      --follow.endpoint https://rpc.drpc.testnet.arc.network,wss=rpc.drpc.testnet.arc.network
+      --follow.endpoint https://rpc.quicknode.testnet.arc.network,wss=rpc.quicknode.testnet.arc.network
+      --follow.endpoint https://rpc.blockdaemon.testnet.arc.network,wss=rpc.blockdaemon.testnet.arc.network
       --full
       --execution-persistence-backpressure
       --execution-persistence-backpressure-threshold=50
