@@ -93,12 +93,11 @@ export class AvalancheRpcNodesStack extends cdk.Stack {
         const userData = ec2.UserData.forLinux();
         userData.addCommands(
             '#!/bin/bash',
-            'set -e',
             'exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1',
             'echo "Starting Avalanche RPC node setup..."',
             '',
             '# Install required packages',
-            'yum install -y wget jq amazon-cloudwatch-agent at',
+            'dnf install -y wget jq amazon-cloudwatch-agent at',
             '',
             '# Create avalanche user',
             'useradd -r -s /bin/false avalanche || true',
