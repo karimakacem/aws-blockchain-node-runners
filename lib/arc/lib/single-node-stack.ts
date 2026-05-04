@@ -121,7 +121,7 @@ export class ArcSingleNodeStack extends cdk.Stack {
         cfnInstance.cfnOptions.creationPolicy = {
             resourceSignal: {
                 count: 1,
-                timeout: "PT120M",  // 120 minutes for snapshot download + initialization
+                timeout: "PT180M",
             },
         };
 
@@ -147,6 +147,7 @@ export class ArcSingleNodeStack extends cdk.Stack {
             '',
             '# Create directories',
             'mkdir -p /data/arc-execution /data/arc-consensus /data/arc-run /opt/arc',
+            'chmod 777 /data/arc-execution /data/arc-consensus /data/arc-run',
             '',
             '# Download assets',
             `aws s3 cp s3://${assetsBucket}/${assetsKey} /tmp/assets.zip`,

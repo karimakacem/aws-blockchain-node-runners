@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-
 # Download and extract Circle ARC snapshot
 CHAIN=${1:-arc-testnet}
 EXECUTION_DIR=${2:-/data/arc-execution}
@@ -16,12 +14,16 @@ echo ""
 mkdir -p "$EXECUTION_DIR" "$CONSENSUS_DIR"
 
 # Install arc-snapshots tool if not present
+export PATH="$HOME/.arc/bin:$PATH"
 if ! command -v arc-snapshots &> /dev/null; then
     echo "Installing arc-snapshots tool..."
 
-    # Download and install arcup (with integrity check)
     INSTALL_SCRIPT=$(mktemp)
-    curl -L https://raw.githubusercontent.com/circlefin/arc-node/main/arcup/install -o "$INSTALL_SCRIPT"
+    if ! curl -fL https://raw.githubusercontent.com/circlefin/arc-node/main/arcup/install -o "$INSTALL_SCRIPT"; then
+        echo "ERROR: Failed to download arcup install script"
+        rm -f "$INSTALL_SCRIPT"
+        exit 1
+    fi
 
     # Verify the script looks legitimate (basic sanity check)
     if grep -q "arc-snapshots" "$INSTALL_SCRIPT" && grep -q "ARC_HOME" "$INSTALL_SCRIPT"; then
@@ -33,12 +35,9 @@ if ! command -v arc-snapshots &> /dev/null; then
         exit 1
     fi
 
-    # Source environment
     if [ -f "$HOME/.arc/env" ]; then
         source "$HOME/.arc/env"
     fi
-
-    # Add to PATH for current session
     export PATH="$HOME/.arc/bin:$PATH"
 fi
 
