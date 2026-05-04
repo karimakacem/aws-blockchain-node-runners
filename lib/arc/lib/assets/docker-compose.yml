@@ -34,13 +34,6 @@ services:
       --metrics 0.0.0.0:9001
       --disable-discovery
       --enable-arc-rpc
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9001/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
   arc-consensus:
     image: docker.cloudsmith.io/circle/arc-network/arc-consensus:${ARC_VERSION}
     container_name: arc-consensus
@@ -50,7 +43,7 @@ services:
       - no-new-privileges:true
     depends_on:
       arc-execution:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - /data/arc-consensus:/home
       - /data/arc-run:/run
@@ -71,9 +64,3 @@ services:
       --execution-persistence-backpressure
       --execution-persistence-backpressure-threshold=50
       --metrics 0.0.0.0:29000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:29000/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
