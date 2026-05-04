@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # Download and extract Arbitrum snapshot
 # Snapshots from: https://snapshot-explorer.arbitrum.io/
