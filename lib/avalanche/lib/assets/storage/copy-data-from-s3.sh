@@ -10,25 +10,23 @@ echo "Snapshot restore started at $(date)"
 mkdir -p /var/lib/avalanche/data
 chown -R avalanche:avalanche /var/lib/avalanche
 
-# Wait for snapshot to be available in S3 (sync node may still be bootstrapping)
+# Wait for snapshot to be available in S3 (sync node may still be bootstrapping — can take many hours)
 echo "Waiting for snapshot to be available at ${SNAPSHOT_S3_PATH}/data/ ..."
-WAIT_RETRIES=720
+WAIT_RETRIES=2880
 WAIT_COUNT=0
 while [ $WAIT_COUNT -lt $WAIT_RETRIES ]; do
     OBJECT_COUNT=$(aws s3 ls "${SNAPSHOT_S3_PATH}/data/" --region "$REGION" 2>/dev/null | grep -c "PRE\|[0-9]" || true)
     if [ "$OBJECT_COUNT" -gt 0 ]; then
-        echo "Snapshot found in S3 after $((WAIT_COUNT * 5 / 60)) minutes. Starting restore..."
+        echo "Snapshot found in S3 after $((WAIT_COUNT / 60)) hours $((WAIT_COUNT % 60)) minutes. Starting restore..."
         break
     fi
     WAIT_COUNT=$((WAIT_COUNT + 1))
-    if [ $((WAIT_COUNT % 12)) -eq 0 ]; then
-        echo "Still waiting for snapshot... ($((WAIT_COUNT * 5 / 60)) minutes elapsed)"
-    fi
-    sleep 5
+    echo "Still waiting for snapshot... ($((WAIT_COUNT / 60))h $((WAIT_COUNT % 60))m elapsed)"
+    sleep 60
 done
 
 if [ $WAIT_COUNT -ge $WAIT_RETRIES ]; then
-    echo "ERROR: Snapshot not available after 1 hour. Starting AvalancheGo to sync from scratch."
+    echo "ERROR: Snapshot not available after 48 hours. Starting AvalancheGo to sync from scratch."
 fi
 
 SECONDS=0
