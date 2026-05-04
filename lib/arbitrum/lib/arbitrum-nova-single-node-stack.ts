@@ -168,6 +168,7 @@ export class ArbitrumNovaSingleNodeStack extends cdk.Stack {
             'Restart=always',
             'RestartSec=30',
             'TimeoutStartSec=0',
+            'ExecStartPre=/bin/chmod 777 /data/nitro',
             `ExecStart=/usr/bin/docker run --rm --name nitro \\`,
             '  -v /data/nitro:/data \\',
             `  -p ${rpcPort}:${rpcPort} \\`,
