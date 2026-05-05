@@ -130,6 +130,103 @@ export class RobinhoodSingleNodeStack extends cdk.Stack {
             },
         };
 
+        // Beacon blob proxy: serves archived blobs from Blockscout for slots outside the
+        // 18-day PeerDAS retention window. Robinhood Chain launched after Sepolia's Fusaka
+        // upgrade (Oct 2026), so all its L1 inbox batches use PeerDAS blobs that are pruned
+        // from public beacon nodes after ~18 days. This proxy falls back to Blockscout's
+        // indefinite blob archive for any slot the beacon can't serve.
+        const blobProxyScript = Buffer.from(`#!/usr/bin/env python3
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+from urllib.request import urlopen, Request
+import json, re, sys
+
+BLOCKSCOUT = "https://eth-sepolia.blockscout.com/api/v2/blobs"
+REAL_BEACON = "${l1BeaconUrl}"
+
+class BlobProxyHandler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        print(f"[blob-proxy] {fmt % args}", file=sys.stderr, flush=True)
+
+    def proxy_to_real_beacon(self, path):
+        url = REAL_BEACON + path
+        try:
+            req = Request(url, headers={"User-Agent": "blob-proxy/1.0"})
+            with urlopen(req, timeout=15) as r:
+                body = r.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            self.send_error(502, str(e))
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        m = re.match(r'^/eth/v1/beacon/blobs/(\\d+)$', parsed.path)
+        if not m:
+            self.proxy_to_real_beacon(self.path)
+            return
+        slot = m.group(1)
+        params = parse_qs(parsed.query)
+        versioned_hashes = params.get('versioned_hashes', [])
+        blobs_out = []
+        for vh in versioned_hashes:
+            try:
+                req = Request(f"{BLOCKSCOUT}/{vh}", headers={"User-Agent": "blob-proxy/1.0"})
+                with urlopen(req, timeout=30) as r:
+                    data = json.loads(r.read())
+                blobs_out.append(data['blob_data'])
+                print(f"[blob-proxy] Served {vh[:20]}... slot={slot} from Blockscout", file=sys.stderr, flush=True)
+            except Exception as e:
+                print(f"[blob-proxy] Blockscout failed for {vh}: {e}, trying beacon", file=sys.stderr, flush=True)
+                self.proxy_to_real_beacon(self.path)
+                return
+        response = json.dumps({"data": blobs_out}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
+
+if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 3500
+    print(f"[blob-proxy] Listening on 0.0.0.0:{port}", file=sys.stderr, flush=True)
+    HTTPServer(("0.0.0.0", port), BlobProxyHandler).serve_forever()
+`).toString('base64');
+
+        const blobProxyService = Buffer.from(`[Unit]
+Description=Beacon Blob Proxy (Blockscout archive fallback)
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=/usr/bin/python3 /usr/local/bin/blob_proxy.py 3500
+
+[Install]
+WantedBy=multi-user.target
+`).toString('base64');
+
+        const nitroService = Buffer.from(`[Unit]
+Description=Robinhood Chain Nitro Node
+After=docker.service blob-proxy.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=30
+TimeoutStartSec=0
+ExecStart=/usr/bin/docker run --rm --name nitro --network=host -v /data/nitro:/data offchainlabs/nitro-node:${nitroVersion} --conf.file /data/robinhood-chain-testnet-config.json --persistent.chain /data --parent-chain.connection.url ${l1RpcUrl} --parent-chain.blob-client.beacon-url http://127.0.0.1:3500 --node.staker.enable=false --http.addr 0.0.0.0 --http.port ${rpcPort} --http.vhosts=* --http.corsdomain=* --http.api=eth,net,web3,arb --http.rpcprefix=/ --ws.addr 0.0.0.0 --ws.port ${wsPort} --ws.origins=* --ws.api=eth,net,web3,arb --ws.rpcprefix=/ --metrics --metrics-server.addr 0.0.0.0 --metrics-server.port ${metricsPort} --log-level info
+ExecStop=/usr/bin/docker stop nitro
+
+[Install]
+WantedBy=multi-user.target
+`).toString('base64');
+
         // User data for Robinhood Chain setup
         node.instance.addUserData(
             '#!/bin/bash',
@@ -166,55 +263,23 @@ export class RobinhoodSingleNodeStack extends cdk.Stack {
             `echo "Downloading Robinhood Chain testnet config..."`,
             'curl -o /data/nitro/robinhood-chain-testnet-config.json https://cdn.robinhood.com/assets/generated_assets/hoodchain_docsite/chain-node-configs/robinhood-chain-testnet-config.json',
             '',
+            '# Install blob proxy (serves archived Sepolia PeerDAS blobs from Blockscout)',
+            `echo '${blobProxyScript}' | base64 -d > /usr/local/bin/blob_proxy.py`,
+            'chmod +x /usr/local/bin/blob_proxy.py',
+            `echo '${blobProxyService}' | base64 -d > /etc/systemd/system/blob-proxy.service`,
+            '',
             '# Pull Nitro Docker image',
             `echo "Pulling Nitro ${nitroVersion}..."`,
             `docker pull offchainlabs/nitro-node:${nitroVersion}`,
             '',
-            '# Create systemd service',
-            'cat > /etc/systemd/system/nitro.service << EOF',
-            '[Unit]',
-            'Description=Robinhood Chain Nitro Node',
-            'After=docker.service',
-            'Requires=docker.service',
+            '# Write Nitro systemd service (uses --network=host to reach local blob proxy)',
+            `echo '${nitroService}' | base64 -d > /etc/systemd/system/nitro.service`,
             '',
-            '[Service]',
-            'Type=simple',
-            'Restart=always',
-            'RestartSec=30',
-            'TimeoutStartSec=0',
-            `ExecStart=/usr/bin/docker run --rm --name nitro \\`,
-            '  -v /data/nitro:/data \\',
-            `  -p ${rpcPort}:${rpcPort} \\`,
-            `  -p ${wsPort}:${wsPort} \\`,
-            `  -p ${metricsPort}:${metricsPort} \\`,
-            `  offchainlabs/nitro-node:${nitroVersion} \\`,
-            '  --conf.file /data/robinhood-chain-testnet-config.json \\',
-            '  --persistent.chain /data \\',
-            `  --parent-chain.connection.url ${l1RpcUrl} \\`,
-            `  --parent-chain.blob-client.beacon-url ${l1BeaconUrl} \\`,
-            '  --node.staker.enable=false \\',
-            '  --http.addr 0.0.0.0 \\',
-            `  --http.port ${rpcPort} \\`,
-            '  --http.vhosts=* \\',
-            '  --http.corsdomain=* \\',
-            '  --http.api=eth,net,web3,arb \\',
-            '  --ws.addr 0.0.0.0 \\',
-            `  --ws.port ${wsPort} \\`,
-            '  --ws.origins=* \\',
-            '  --ws.api=eth,net,web3,arb \\',
-            '  --metrics \\',
-            '  --metrics-server.addr 0.0.0.0 \\',
-            `  --metrics-server.port ${metricsPort} \\`,
-            '  --log-level info',
-            'ExecStop=/usr/bin/docker stop nitro',
-            '',
-            '[Install]',
-            'WantedBy=multi-user.target',
-            'EOF',
-            '',
-            '# Start service',
+            '# Start services',
             'systemctl daemon-reload',
-            'systemctl enable nitro',
+            'systemctl enable blob-proxy nitro',
+            'systemctl start blob-proxy',
+            'sleep 2',
             'systemctl start nitro',
             '',
             '# Wait for nitro to become active (Docker pull + startup can take several minutes)',
