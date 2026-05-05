@@ -6,6 +6,7 @@ import * as nag from "cdk-nag";
 import * as config from "./lib/config/arc-config";
 import { ArcCommonStack } from "./lib/common-stack";
 import { ArcSingleNodeStack } from "./lib/single-node-stack";
+import { ArcRpcNodesStack } from "./lib/rpc-nodes-stack";
 
 const app = new cdk.App();
 cdk.Tags.of(app).add("Project", "CircleARC");
@@ -28,6 +29,25 @@ new ArcSingleNodeStack(app, "arc-single-node", {
     executionMetricsPort: config.baseConfig.executionMetricsPort,
     consensusRpcPort: config.baseConfig.consensusRpcPort,
     consensusMetricsPort: config.baseConfig.consensusMetricsPort,
+});
+
+new ArcRpcNodesStack(app, "arc-rpc-nodes", {
+    stackName: `arc-rpc-nodes-${config.baseConfig.network}`,
+    env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
+    instanceType: config.rpcNodeConfig.instanceType,
+    instanceCpuType: config.rpcNodeConfig.instanceCpuType,
+    network: config.baseConfig.network,
+    arcVersion: config.baseConfig.arcVersion,
+    snapshotDownload: config.baseConfig.snapshotDownload,
+    dataVolume: config.rpcNodeConfig.dataVolumes[0],
+    executionRpcPort: config.baseConfig.executionRpcPort,
+    executionWsPort: config.baseConfig.executionWsPort,
+    executionMetricsPort: config.baseConfig.executionMetricsPort,
+    consensusRpcPort: config.baseConfig.consensusRpcPort,
+    consensusMetricsPort: config.baseConfig.consensusMetricsPort,
+    numberOfNodes: config.rpcNodeConfig.numberOfNodes,
+    albHealthCheckGracePeriodMin: config.rpcNodeConfig.albHealthCheckGracePeriodMin,
+    heartBeatDelayMin: config.rpcNodeConfig.heartBeatDelayMin,
 });
 
 // Security checks
