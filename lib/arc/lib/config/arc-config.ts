@@ -22,7 +22,7 @@ export const baseConfig: configTypes.ArcBaseConfig = {
     region: process.env.AWS_REGION || "us-east-1",
     network: <configTypes.ArcNetwork>process.env.ARC_NETWORK || "testnet",
     arcVersion: process.env.ARC_VERSION || "0.6.0",
-    snapshotDownload: process.env.ARC_SNAPSHOT_DOWNLOAD?.toLowerCase() === "true" || true,
+    snapshotDownload: process.env.ARC_SNAPSHOT_DOWNLOAD?.toLowerCase() !== "false",
     executionRpcPort: process.env.ARC_EXECUTION_RPC_PORT ? parseInt(process.env.ARC_EXECUTION_RPC_PORT) : 8545,
     executionWsPort: process.env.ARC_EXECUTION_WS_PORT ? parseInt(process.env.ARC_EXECUTION_WS_PORT) : 8546,
     executionMetricsPort: process.env.ARC_EXECUTION_METRICS_PORT ? parseInt(process.env.ARC_EXECUTION_METRICS_PORT) : 9001,
