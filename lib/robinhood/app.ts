@@ -14,13 +14,13 @@ cdk.Tags.of(app).add("Project", "AWSRobinhoodChain");
 
 // Common stack with shared resources
 new RobinhoodCommonStack(app, "robinhood-common", {
-    stackName: `robinhood-common`,
+    stackName: `robinhood-common-${config.baseConfig.network}`,
     env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
 });
 
 // Single node stack for Robinhood Chain
 new RobinhoodSingleNodeStack(app, "robinhood-single-node", {
-    stackName: `robinhood-single-node`,
+    stackName: `robinhood-single-node-${config.baseConfig.network}`,
     env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
     instanceType: config.singleNodeConfig.instanceType,
     instanceCpuType: config.singleNodeConfig.instanceCpuType,
@@ -39,7 +39,7 @@ new RobinhoodSingleNodeStack(app, "robinhood-single-node", {
 
 // HA RPC nodes stack for Robinhood Chain
 new RobinhoodRpcNodesStack(app, "robinhood-rpc-nodes", {
-    stackName: `robinhood-rpc-nodes`,
+    stackName: `robinhood-rpc-nodes-${config.baseConfig.network}`,
     env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
     instanceType: config.rpcNodeConfig.instanceType,
     instanceCpuType: config.rpcNodeConfig.instanceCpuType,
