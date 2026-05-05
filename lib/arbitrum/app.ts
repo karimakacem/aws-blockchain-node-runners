@@ -16,19 +16,27 @@ const app = new cdk.App();
 // Deploy stacks based on configured network
 const network = config.baseConfig.network;
 
+// Human-readable network suffix for stack names (arb1 = mainnet, nova = mainnet, sepolia-rollup = sepolia)
+const networkSuffix: Record<string, string> = {
+    "arb1": "mainnet",
+    "nova": "mainnet",
+    "sepolia-rollup": "sepolia",
+};
+const suffix = networkSuffix[network] ?? network;
+
 if (network === "arb1") {
     cdk.Tags.of(app).add("Project", "AWSArbitrumOne");
 
     // Common stack with shared resources for Arbitrum One
     new ArbitrumCommonStack(app, "arbitrum-one-common", {
-        stackName: `arbitrum-one-common`,
+        stackName: `arbitrum-one-common-${suffix}`,
         env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
         network: "arb1",
     });
 
     // Single node stack for Arbitrum One
     new ArbitrumOneSingleNodeStack(app, "arbitrum-one-single-node", {
-        stackName: `arbitrum-one-single-node`,
+        stackName: `arbitrum-one-single-node-${suffix}`,
         env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
         instanceType: config.singleNodeConfig.instanceType,
         instanceCpuType: config.singleNodeConfig.instanceCpuType,
@@ -45,7 +53,7 @@ if (network === "arb1") {
 
     // HA RPC nodes stack for Arbitrum One
     new ArbitrumOneRpcNodesStack(app, "arbitrum-one-rpc-nodes", {
-        stackName: `arbitrum-one-rpc-nodes`,
+        stackName: `arbitrum-one-rpc-nodes-${suffix}`,
         env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
         instanceType: config.rpcNodeConfig.instanceType,
         instanceCpuType: config.rpcNodeConfig.instanceCpuType,
@@ -68,14 +76,14 @@ if (network === "arb1") {
 
     // Common stack with shared resources for Arbitrum Nova
     new ArbitrumCommonStack(app, "arbitrum-nova-common", {
-        stackName: `arbitrum-nova-common`,
+        stackName: `arbitrum-nova-common-${suffix}`,
         env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
         network: "nova",
     });
 
     // Single node stack for Arbitrum Nova
     new ArbitrumNovaSingleNodeStack(app, "arbitrum-nova-single-node", {
-        stackName: `arbitrum-nova-single-node`,
+        stackName: `arbitrum-nova-single-node-${suffix}`,
         env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
         instanceType: config.singleNodeConfig.instanceType,
         instanceCpuType: config.singleNodeConfig.instanceCpuType,
@@ -92,7 +100,7 @@ if (network === "arb1") {
 
     // HA RPC nodes stack for Arbitrum Nova
     new ArbitrumNovaRpcNodesStack(app, "arbitrum-nova-rpc-nodes", {
-        stackName: `arbitrum-nova-rpc-nodes`,
+        stackName: `arbitrum-nova-rpc-nodes-${suffix}`,
         env: { account: config.baseConfig.accountId, region: config.baseConfig.region },
         instanceType: config.rpcNodeConfig.instanceType,
         instanceCpuType: config.rpcNodeConfig.instanceCpuType,
