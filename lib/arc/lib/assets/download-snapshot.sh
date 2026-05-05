@@ -13,6 +13,14 @@ echo ""
 # Create directories
 mkdir -p "$EXECUTION_DIR" "$CONSENSUS_DIR"
 
+# arc-snapshots uses /tmp as staging area for extraction regardless of --execution-path.
+# On EC2, /tmp is a 62 GB tmpfs that fills up with snapshot files (~84 GB compressed).
+# Setting TMPDIR to a path on the large EBS data volume forces staging there instead.
+TMPDIR_PARENT=$(dirname "$EXECUTION_DIR")
+export TMPDIR="$TMPDIR_PARENT/arc-tmp"
+mkdir -p "$TMPDIR"
+echo "Using TMPDIR=$TMPDIR for snapshot staging"
+
 # Install arc-snapshots tool if not present
 export PATH="$HOME/.arc/bin:$PATH"
 if ! command -v arc-snapshots &> /dev/null; then
@@ -59,12 +67,27 @@ arc-snapshots download \
     --execution-path "$EXECUTION_DIR" \
     --consensus-path "$CONSENSUS_DIR"
 
+EXIT_CODE=$?
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 DURATION_MIN=$((DURATION / 60))
 
+# Clean up staging area
+rm -rf "$TMPDIR"
+
+if [ $EXIT_CODE -ne 0 ]; then
+    echo "ERROR: arc-snapshots download failed with exit code $EXIT_CODE"
+    exit $EXIT_CODE
+fi
+
 echo ""
 echo "Snapshot download completed in $DURATION_MIN minutes"
+
+# arc-snapshots extracts files as root; containers run as uid 999 (arc user).
+# Without this chown the execution container fails with "permission denied on /data/db/lock".
+echo "Setting ownership for container user (uid 999)..."
+chown -R 999:65533 "$EXECUTION_DIR" "$CONSENSUS_DIR"
+
 echo "Execution data: $EXECUTION_DIR"
 echo "Consensus data: $CONSENSUS_DIR"
 echo ""
