@@ -1,11 +1,10 @@
 #!/bin/bash
-set -e
+exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
 echo "Starting Arbitrum RPC node initialization..."
 
-# Update system and install dependencies
-yum update -y
-yum install -y docker wget tar gzip amazon-cloudwatch-agent jq
+# Install dependencies (dnf for Amazon Linux 2023)
+dnf install -y docker wget tar gzip amazon-cloudwatch-agent jq
 
 # Start Docker service
 systemctl enable docker
@@ -17,9 +16,9 @@ until docker info >/dev/null 2>&1; do
     sleep 2
 done
 
-# Create data directory
+# Create data directory (chmod 777 so Nitro container can write without chown)
 mkdir -p /data/nitro
-chown -R 1000:1000 /data/nitro
+chmod 777 /data/nitro
 
 # Download snapshot if requested
 if [ "${_SNAPSHOT_TYPE_}" != "none" ]; then
@@ -63,6 +62,8 @@ ExecStart=/usr/bin/docker run --rm --name nitro \
   --parent-chain.connection.url ${_L1_RPC_URL_} \
   --parent-chain.blob-client.beacon-url ${_L1_BEACON_URL_} \
   --chain.name ${_ARBITRUM_NETWORK_} \
+  --node.staker.enable=false \
+  --init.empty \
   --http.addr 0.0.0.0 \
   --http.port ${_RPC_PORT_} \
   --http.vhosts=* \
