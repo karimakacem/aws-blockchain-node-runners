@@ -93,11 +93,25 @@ INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.2
 ARCH=$(uname -m)
 
 echo "$SCRIPT_NAME Installing basic packages"
-while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-    sleep 5
+# Wait out any boot-time apt holder (unattended-upgrades / apt-daily) that
+# grabs the dpkg lock during early boot. The previous `fuser` check raced the
+# lock (it could be re-acquired between the check and apt), and under `set +e`
+# a failed install silently left the box without `unzip`, so asset extraction
+# below no-op'd and the protocol node-setup script was never unpacked.
+# DPkg::Lock::Timeout makes apt itself wait for the lock; we also retry.
+for _ in 1 2 3 4 5 6; do
+    apt-get -o DPkg::Lock::Timeout=120 -yqq update && \
+    apt-get -o DPkg::Lock::Timeout=120 -yqq install jq unzip python3-pip python3-setuptools chrony wget && \
+    break
+    echo "$SCRIPT_NAME apt install attempt failed (dpkg lock / transient); retrying in 15s..."
+    sleep 15
 done
-apt-get -yqq update
-apt-get -yqq install jq unzip python3-pip python3-setuptools chrony wget
+# Fail loudly if the critical tool for asset extraction is still missing,
+# rather than continuing to a confusing "node.sh not found" much later.
+if ! command -v unzip >/dev/null 2>&1; then
+    echo "$SCRIPT_NAME FATAL: unzip not installed after retries — cannot extract assets" >&2
+    exit 1
+fi
 
 echo "$SCRIPT_NAME Install CloudFormation helper scripts (cfn-signal, cfn-init, etc.)"
 echo "Installing CloudFormation helper scripts..."

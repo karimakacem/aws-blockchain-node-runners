@@ -1,3 +1,4 @@
 account: '\d{12}'
 account: "\d{12}"
 account=\d{12}
+AWS_ACCOUNT_ID="\d{12}"
