@@ -58,12 +58,21 @@ class BlobProxyHandler(BaseHTTPRequestHandler):
         params = parse_qs(parsed.query)
         versioned_hashes = params.get('versioned_hashes', [])
         blobs_out = []
-        for vh in versioned_hashes:
+        for idx, vh in enumerate(versioned_hashes):
             try:
                 req = Request(f"{BLOCKSCOUT}/{vh}", headers={"User-Agent": "blob-proxy/1.0"})
                 with urlopen(req, timeout=30) as r:
                     data = json.loads(r.read())
-                blobs_out.append(data['blob_data'])
+                # Nitro's beacon getBlobs client unmarshals each data[] entry as a
+                # blob-sidecar OBJECT with hex-string fields — NOT a bare blob string.
+                # Blockscout returns {blob_data, kzg_commitment, kzg_proof, ...}; map it
+                # into the beacon /eth/v1/beacon/blob_sidecars schema the client expects.
+                blobs_out.append({
+                    "index": str(idx),
+                    "blob": data["blob_data"],
+                    "kzg_commitment": data["kzg_commitment"],
+                    "kzg_proof": data["kzg_proof"],
+                })
                 print(f"[blob-proxy] Served {vh[:20]}... slot={slot} from Blockscout",
                       file=sys.stderr, flush=True)
             except Exception as e:
