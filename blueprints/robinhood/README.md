@@ -44,7 +44,7 @@ healthy, synced nodes. Suitable for production RPC serving.
 |---|---|
 | Instance (x86_64) | `m6i.2xlarge` (8 vCPU, 32 GB) — step up to `m6i.4xlarge` for heavier mainnet load (Robinhood docs recommend 64 GB+ RAM for mainnet) |
 | Instance (ARM_64) | `m7g.2xlarge` |
-| Storage | `gp3`, 1000 GiB (grow for archive / long-running mainnet) |
+| Storage | `gp3`; testnet 1000 GiB, mainnet 2200 GiB (snapshot restore needs ~2x the snapshot size) |
 | Ports | 8547 (RPC), 8548 (WS), 6070 (metrics) — all VPC-internal |
 
 ### Prerequisites
@@ -126,14 +126,30 @@ resilience; on `testnet` it uses the single testnet feed.
 
 ## Database Snapshots
 
-Robinhood Chain is an Arbitrum Nitro chain, so a new node can be seeded from an
-Arbitrum **Nitro database snapshot** instead of syncing from the parent chain.
-These are published through Arbitrum's generic snapshot tooling
-([snapshot-explorer.arbitrum.io](https://snapshot-explorer.arbitrum.io/),
-[Nitro database snapshots](https://docs.arbitrum.io/run-arbitrum-node/nitro/nitro-database-snapshots)),
-not as a single HTTPS archive, so this blueprint ships with `SNAPSHOT_ENABLED="false"`.
-To seed from a snapshot, download and extract it into `/data/nitro` before the
-`node` service first starts.
+Offchain Labs publishes pruned Nitro database snapshots for both networks. A
+fresh node restores from one on first start instead of syncing from genesis,
+which also avoids the need for an archive-grade L1 endpoint. Find the latest at
+[snapshot-explorer.arbitrum.io](https://snapshot-explorer.arbitrum.io/?chain=Robinhood+Chain)
+(mainnet) or
+[Robinhood Chain Sepolia](https://snapshot-explorer.arbitrum.io/?chain=Robinhood+Chain+Sepolia)
+(testnet), and set `ROBINHOOD_SNAPSHOT_URL` in your `.env`.
+
+- **Use the snapshot directory URL with a trailing slash**, for example
+  `https://robinhood-snapshots.offchainlabs.com/robinhood%20chain/2026-10-09-3d32b936/`.
+  Nitro reads the directory's `.manifest.txt`, downloads every part, verifies
+  each checksum, then joins and extracts them
+  ([Nitro database snapshots](https://docs.arbitrum.io/run-arbitrum-node/nitro/nitro-database-snapshots)).
+  Do not point it at a `pruned.tar.partNNNN` file: mainnet snapshots are split
+  into ~500 GB parts, and a single part passes its own checksum but fails
+  extraction with `unexpected EOF`. `node.sh` rewrites a part URL to its
+  directory for you.
+- **Size the data volume for ~2x the snapshot.** The restore holds the parts
+  and the joined archive at the same time. The 2026-10-09 mainnet snapshot is
+  925 GiB, so the mainnet samples use `DATA_VOL_1_SIZE="2200"`; testnet
+  snapshots are ~250 GiB and fit the default 1000 GiB.
+
+`SNAPSHOT_ENABLED` (the framework's own S3 snapshot restore) stays `"false"`
+for this blueprint.
 
 ## Troubleshooting
 

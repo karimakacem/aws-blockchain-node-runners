@@ -155,8 +155,24 @@ fi
 #   testnet: https://snapshot-explorer.arbitrum.io/?chain=Robinhood+Chain+Sepolia
 # Nitro downloads and initializes from it on first start via --init.url.
 # Applied only on a fresh data dir (skipped once the chain db exists).
+#
+# Use the snapshot DIRECTORY URL with a trailing slash, e.g.
+#   https://robinhood-snapshots.offchainlabs.com/robinhood%20chain/2026-10-09-3d32b936/
+# Nitro then reads <dir>/.manifest.txt, downloads every part, verifies each
+# checksum, joins them and extracts. Snapshots are split into ~500 GB parts
+# (mainnet is two: pruned.tar.part0000 + part0001). Pointing --init.url at a
+# single part file is a trap: each part has its own .sha256, so Nitro accepts
+# part0000 as a complete archive and fails extracting it with "unexpected EOF".
+# A part-file URL is therefore rewritten to its directory below.
+# Disk: the restore needs ~2x the snapshot size free (parts + joined archive).
 INIT_URL_ARG=""
 if [ -n "${ROBINHOOD_SNAPSHOT_URL:-}" ] && [ -z "$(find /data/nitro -maxdepth 3 -type d -name l2chaindata 2>/dev/null)" ]; then
+    case "${ROBINHOOD_SNAPSHOT_URL}" in
+        *.tar.part[0-9][0-9][0-9][0-9])
+            ROBINHOOD_SNAPSHOT_URL="${ROBINHOOD_SNAPSHOT_URL%/*}/"
+            echo "ROBINHOOD_SNAPSHOT_URL pointed at one snapshot part; using its directory: ${ROBINHOOD_SNAPSHOT_URL}"
+            ;;
+    esac
     echo "Will restore from snapshot: ${ROBINHOOD_SNAPSHOT_URL}"
     # systemd treats '%' as a specifier in unit files, so a URL-encoded path
     # (e.g. the %20 spaces in the snapshot key) must have '%' escaped to '%%'.
