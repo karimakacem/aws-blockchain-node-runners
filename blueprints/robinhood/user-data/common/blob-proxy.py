@@ -30,7 +30,12 @@
 # array Nitro wants.
 #
 # Source selection:
-#   1. BEACON FIRST — the real beacon's blob_sidecars endpoint has every blob
+#   0. STANDARD getBlobs — /eth/v1/beacon/blobs/{slot}?versioned_hashes=..
+#      on the real beacon, one hash per request. Required since Sepolia's
+#      Glamsterdam (Gloas) fork at slot 11,296,768: Gloas moved blob
+#      commitments out of the beacon block body, so blob_sidecars/{slot}
+#      returns 400 "pre-Deneb, no blobs" for every Gloas slot.
+#   1. BEACON SIDECARS — the real beacon's blob_sidecars endpoint has every blob
 #      still inside its rolling retention window (~18 days). We fetch the
 #      sidecars, index them by versioned_hash (derived from each sidecar's
 #      kzg_commitment), and emit the requested blobs in order.
@@ -119,6 +124,44 @@ class BlobProxyHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error(502, str(e))
 
+    def _beacon_blobs_direct(self, slot, versioned_hashes):
+        """Fetch blobs via the standard beacon getBlobs endpoint (Fulu+).
+
+        GET /eth/v1/beacon/blobs/{slot}?versioned_hashes=<vh> returns
+        {"data": ["0x<blob>"]}. This is the only path that works for Gloas
+        (Glamsterdam) blocks: from Gloas on, blob commitments moved out of the
+        beacon block body into the execution payload envelope, so
+        blob_sidecars/{slot} answers 400 "pre-Deneb, no blobs" even though
+        the blobs exist. One versioned hash per request, so each answer maps
+        to exactly one requested hash and request order is preserved.
+
+        Returns a {versioned_hash: blob_hex} map, or None if no beacon could
+        serve every requested hash."""
+        if not versioned_hashes:
+            return None
+        beacons = ([REAL_BEACON] if REAL_BEACON else []) + SECONDARY_BEACONS
+        for base in beacons:
+            by_vh = {}
+            for vh in versioned_hashes:
+                url = f"{base}/eth/v1/beacon/blobs/{slot}?versioned_hashes={vh}"
+                try:
+                    req = Request(url, headers={"User-Agent": _UA, "Accept": "application/json"})
+                    with urlopen(req, timeout=20) as r:
+                        data = json.loads(r.read()).get("data") or []
+                except Exception as e:
+                    print(f"[blob-proxy] getBlobs miss slot={slot} via {base}: {e}",
+                          file=sys.stderr, flush=True)
+                    break
+                if len(data) != 1 or not isinstance(data[0], str):
+                    print(f"[blob-proxy] getBlobs slot={slot} via {base}: "
+                          f"expected 1 blob for {vh[:20]}, got {len(data)}",
+                          file=sys.stderr, flush=True)
+                    break
+                by_vh[vh] = _norm_hex(data[0])
+            if len(by_vh) == len(versioned_hashes):
+                return by_vh
+        return None
+
     def _beacon_blobs_by_vh(self, slot, versioned_hashes):
         """Fetch sidecars from the real beacon(s) and return a {versioned_hash: blob_hex} map.
 
@@ -186,10 +229,14 @@ class BlobProxyHandler(BaseHTTPRequestHandler):
         params = parse_qs(parsed.query)
         versioned_hashes = [_norm_hex(h) for h in params.get('versioned_hashes', [])]
 
-        # 1. Beacon first — serves anything still inside its retention window.
-        by_vh = self._beacon_blobs_by_vh(slot, versioned_hashes)
-        source = "beacon"
-        # 2. Fallback to Blockscout only for pruned slots.
+        # 1. Standard getBlobs endpoint — required for Gloas (Glamsterdam) slots.
+        by_vh = self._beacon_blobs_direct(slot, versioned_hashes)
+        source = "beacon-getblobs"
+        # 2. Sidecar translation — for beacons that lack getBlobs (pre-Fulu).
+        if by_vh is None:
+            by_vh = self._beacon_blobs_by_vh(slot, versioned_hashes)
+            source = "beacon-sidecars"
+        # 3. Fallback to Blockscout only for pruned slots.
         if by_vh is None:
             by_vh = self._blockscout_blobs_by_vh(versioned_hashes)
             source = "blockscout"
