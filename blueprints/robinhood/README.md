@@ -33,10 +33,10 @@ healthy, synced nodes. Suitable for production RPC serving.
 
 | Option | Value |
 |---|---|
-| Client | Arbitrum Nitro (`offchainlabs/nitro-node:v3.11.2-3599aca`) |
+| Client | Arbitrum Nitro (`offchainlabs/nitro-node:v3.11.5-7d41882`) |
 | Networks | `mainnet` (4663), `testnet` (46630) |
 | Deployment modes | `single-node`, `ha-nodes` |
-| Default configuration | `nitro-v3.11.2-full.yml` |
+| Default configuration | `nitro-v3.11.5-full.yml` |
 
 ## Infrastructure Requirements
 
@@ -153,7 +153,7 @@ See the main [Troubleshooting Guide](../../docs/troubleshooting.md) for more.
 ## Upgrades
 
 - **Upgrade the Nitro client:** bump `nitro_image` in
-  `configurations/nitro-v3.11.2-full.yml` (rename the file to the new version)
+  `configurations/nitro-v3.11.5-full.yml` (rename the file to the new version)
   via the `@version-update` workflow, then redeploy.
 - **Rolling updates (HA):** replace instances one at a time through the Auto
   Scaling Group so RPC capacity is preserved.

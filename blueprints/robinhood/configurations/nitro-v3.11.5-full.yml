@@ -17,7 +17,7 @@
 # Reference: https://docs.robinhood.com/chain/run-a-full-node
 # Nitro image tags: https://hub.docker.com/r/offchainlabs/nitro-node/tags
 
-nitro_image: "offchainlabs/nitro-node:v3.11.2-3599aca"
+nitro_image: "offchainlabs/nitro-node:v3.11.5-7d41882"
 
 # RPC/WS/metrics API namespaces exposed by the node
 http_api: "net,web3,eth,arb"
