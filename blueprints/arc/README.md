@@ -193,8 +193,10 @@ older versions stop following the chain. Watch the
 
 - RPC and WS bind to the instance's internal IP (never `0.0.0.0`); metrics and
   the CL RPC bind to `127.0.0.1`.
-- Both containers run as the images' non-root `arc` user (UID 999) with
-  `no-new-privileges`; the systemd service runs as `bcuser`.
+- Both containers run as the non-root `bcuser` (UID 1002) with
+  `no-new-privileges`, as does the systemd service. The images' built-in
+  `arc` user (UID 999) is not used because UID 999 belongs to the CloudWatch
+  agent's `cwagent` user on Ubuntu hosts.
 - The CL private key in `/data/arc/consensus` is only the node's network
   identity, not a validator key. It is generated once and never overwritten.
 - The default ALB is internal and restricted to the VPC CIDR; exposing it to

@@ -30,7 +30,9 @@ services:
         image: docker.cloudsmith.io/circle/arc-network/arc-execution:0.8.1
         container_name: execution
         restart: always
-        user: "999:999"
+        # bcuser. The image's own "arc" user is uid 999, which on Ubuntu hosts
+        # collides with the CloudWatch agent's cwagent user.
+        user: "1002:1002"
         command:
             - node
             - --chain=${ARC_CHAIN}
@@ -70,7 +72,7 @@ services:
         image: docker.cloudsmith.io/circle/arc-network/arc-consensus:0.8.1
         container_name: consensus
         restart: always
-        user: "999:999"
+        user: "1002:1002"
         command:
             - start
             - --home=/data/consensus

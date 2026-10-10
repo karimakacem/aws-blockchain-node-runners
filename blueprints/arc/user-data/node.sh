@@ -107,13 +107,11 @@ systemctl restart docker
 usermod -aG docker bcuser
 
 # --- Data layout ---
-# The Arc images run as uid/gid 999 ("arc"); the data and the shared IPC
-# socket directory must be owned by that uid, not bcuser.
+# The Arc containers run as bcuser (1002), not the images' built-in "arc"
+# user (uid 999), because uid 999 is taken by the CloudWatch agent's cwagent
+# user on these hosts. bcuser owns the data and the shared IPC socket dir.
 mkdir -p /data/arc/execution /data/arc/consensus /data/arc/run /home/bcuser/arc-node
-chown -R 999:999 /data/arc
-# bcuser (the service user) must be able to clear stale sockets in run/.
-chown 999:bcuser /data/arc/run
-chmod 2775 /data/arc/run
+chown -R bcuser:bcuser /data/arc
 chown bcuser:bcuser /data /home/bcuser /home/bcuser/arc-node
 
 # --- Render the compose file ---

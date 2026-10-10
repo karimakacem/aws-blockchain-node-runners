@@ -18,8 +18,8 @@ set -euo pipefail
 
 : "${ARC_CHAIN:?}" "${ARC_EL_IMAGE:?}" "${ARC_CL_IMAGE:?}"
 
-# Lives in /data (owned by bcuser, the service user), not /data/arc, which is
-# owned by uid 999 for the containers and is not writable by bcuser.
+# Kept outside /data/arc so it is never inside a layer that a forced restore
+# rebuilds. /data is owned by bcuser, the service user.
 SENTINEL=/data/.arc-snapshot-restored
 
 if [ ! -f "$SENTINEL" ]; then
@@ -30,7 +30,7 @@ if [ ! -f "$SENTINEL" ]; then
         # partially restored layers unless --force is given.
         force=""
         [ "$attempt" -gt 1 ] && force="--force"
-        if docker run --rm --name arc-snapshots --user 999:999 \
+        if docker run --rm --name arc-snapshots --user 1002:1002 \
             --security-opt no-new-privileges:true \
             -v /data/arc:/data \
             --entrypoint /usr/local/bin/arc-snapshots \
@@ -58,7 +58,7 @@ else
 fi
 
 # CL key: `init` skips an existing key file and never overwrites it.
-docker run --rm --name arc-consensus-init --user 999:999 \
+docker run --rm --name arc-consensus-init --user 1002:1002 \
     --security-opt no-new-privileges:true \
     -v /data/arc/consensus:/data/consensus \
     "$ARC_CL_IMAGE" \
