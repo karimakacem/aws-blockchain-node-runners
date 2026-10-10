@@ -18,7 +18,9 @@ set -euo pipefail
 
 : "${ARC_CHAIN:?}" "${ARC_EL_IMAGE:?}" "${ARC_CL_IMAGE:?}"
 
-SENTINEL=/data/arc/.snapshot-restored
+# Lives in /data (owned by bcuser, the service user), not /data/arc, which is
+# owned by uid 999 for the containers and is not writable by bcuser.
+SENTINEL=/data/.arc-snapshot-restored
 
 if [ ! -f "$SENTINEL" ]; then
     echo "Restoring ${ARC_CHAIN} snapshot (EL profile: full)..."

@@ -138,7 +138,7 @@ for each network about every four hours at
 `user-data/common/prepare-arc.sh` runs `arc-snapshots download
 --el-profile=full` from the execution image, which picks the newest complete
 pair, downloads it and extracts it into `/data/arc`. It then writes
-`/data/arc/.snapshot-restored` and never downloads again on that volume.
+`/data/.arc-snapshot-restored` and never downloads again on that volume.
 
 Upstream's Docker Compose file re-runs the download on every start, which
 re-downloads the whole execution layer whenever a newer snapshot has been
