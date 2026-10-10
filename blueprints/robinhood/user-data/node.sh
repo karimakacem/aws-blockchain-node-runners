@@ -231,6 +231,13 @@ ExecStart=/usr/bin/docker run --rm --name robinhood-nitro --network=host \\
   ${INIT_URL_ARG} \\
   --parent-chain.connection.url ${ROBINHOOD_L1_RPC_URL} \\
   --parent-chain.blob-client.beacon-url ${BEACON_URL_FOR_NITRO} \\
+  --parent-chain.connection.retries 10 \\
+  --parent-chain.connection.retry-delay 2s \\
+  --parent-chain.connection.retry-errors "429|Too Many Requests|connection reset|EOF|timeout" \\
+  --node.inbox-reader.min-blocks-to-read 1 \\
+  --node.inbox-reader.default-blocks-to-read 10 \\
+  --node.inbox-reader.max-blocks-to-read 20 \\
+  --node.inbox-reader.check-delay 2s \\
   ${FEED_ARGS} \\
   --node.staker.enable=false \\
   --execution.forwarding-target ${SEQUENCER_URL} \\
