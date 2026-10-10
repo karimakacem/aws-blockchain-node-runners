@@ -1,0 +1,53 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Avalanche Primary Network — AvalancheGo Full (non-validator RPC) Node
+#
+# The node runs as a single avaplatform/avalanchego Docker container (host
+# networking) started by the systemd `node` service. This file is a
+# CONFIGURATION MARKER: it pins the AvalancheGo image and the per-network
+# settings that node.sh consumes as the single source of truth. node.sh reads
+# these keys with grep/sed and branches on BC_NETWORK (mainnet vs fuji) — see
+# blueprints/avalanche/user-data/node.sh.
+#
+# SECURITY: avalanchego_image MUST be a specific immutable release tag (never
+# "latest"/"master"), because node.sh pulls and runs it as a service at boot.
+# The tag is a multi-arch index (linux/amd64 + linux/arm64). Bump via the
+# @version-update workflow.
+#
+# Releases:  https://github.com/ava-labs/avalanchego/releases
+# Image:     https://hub.docker.com/r/avaplatform/avalanchego/tags
+# Flags:     https://build.avax.network/docs/nodes/configure/configs-flags
+# C-Chain:   https://github.com/ava-labs/avalanchego/blob/v1.15.1/vms/saevm/cchain/config.md
+
+avalanchego_image: "avaplatform/avalanchego:v1.15.1"
+
+# Path of the binary inside the image (the image has no entrypoint).
+avalanchego_binary: "/avalanchego/build/avalanchego"
+
+# --- Per-network AvalancheGo --network-id values ---
+mainnet_network_id: "mainnet"
+fuji_network_id: "fuji"
+
+# --- Node-level APIs on the HTTP port (9650) ---
+# Admin API stays off. AvalancheGo v1.15 has no keystore API, and the C-Chain
+# admin/personal namespaces were removed by Helicon. Info, health and metrics
+# stay on for operations; the port binds to the EC2 internal IP only.
+api_admin_enabled: "false"
+api_info_enabled: "true"
+api_health_enabled: "true"
+api_metrics_enabled: "true"
+index_enabled: "false"
+
+# --- C-Chain (configs/chains/C/config.json) ---
+# State sync is the default on Mainnet/Fuji after Helicon; it is set explicitly
+# because disabling it after a partial state sync is unrecoverable (v1.15.0
+# release notes). The JSON-RPC namespace list omits the expensive `trace`
+# namespace and the disabled-by-default `db`/`profile` (raw DB + profiling).
+# Names come from the v1.15.1 C-Chain config reference; an unknown name is a
+# fatal configuration error.
+c_chain_state_sync_enabled: "true"
+c_chain_pruning_enabled: "true"
+c_chain_apis: "web3,net,txpool,price,chain,tx,subscription,avalanche"
+
+log_level: "info"
