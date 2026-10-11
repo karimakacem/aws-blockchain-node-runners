@@ -215,7 +215,10 @@ Primary diagnostics are in CloudWatch Logs and `journalctl`.
 
   ```bash
   aws autoscaling suspend-processes --auto-scaling-group-name <asg> --scaling-processes ReplaceUnhealthy
-  # ...after every node answers on 8547:
+  # ...after every node answers on 8547 and the ALB shows every target healthy.
+  # A node the ASG marked Unhealthy during the restore keeps that flag even
+  # after it starts serving; clear it first, or resuming terminates it:
+  aws autoscaling set-instance-health --instance-id <id> --health-status Healthy
   aws autoscaling resume-processes --auto-scaling-group-name <asg> --scaling-processes ReplaceUnhealthy
   ```
 
